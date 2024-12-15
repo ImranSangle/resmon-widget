@@ -1,37 +1,65 @@
 #include <iostream>
+#include <windef.h>
 #include <windows.h>
 #include <math.h>
 #include <thread>
+#include <windowsx.h>
 
 //local headers---------
 #include "workers.h"
 #include "calculations.h"
 #include "draw.h"
 
-static HICON windowIcon;
-static HMENU popup;
-static HRGN MainWindowRegn;
+#define BITSMALL 150 
+#define BITMEDIUM 250 
+#define BITLARGE 400 
 
 //variable used across all translation
- int x;
- int y;
- int view = 0;
- HBITMAP speedometer[2];
- float windowWidth = 150;
- float windowHeight = 150;
+int x;
+int y;
+int view = 0;
+HBITMAP resourceS[2];
+HBITMAP resourceM[2];
+HBITMAP resourceL[2];
+HBITMAP speedometer[2];
+float windowWidth = BITSMALL;
+float windowHeight = BITSMALL;
 
 //static variables only for this translation
 static bool quit = false;
 static bool move = false;
+static HICON windowIcon;
+static HMENU popup;
+static HRGN MainWindowRegn;
+static HWND mainWindow;
 
 NOTIFYICONDATAW nid;
 
 void loadBitmaps(){
-    DeleteObject(windowIcon);
-    DeleteObject(speedometer);
     windowIcon = (HICON)LoadImageW(NULL,L"./resources/icon.ico",IMAGE_ICON,0,0,LR_LOADFROMFILE);
-    speedometer[0] = (HBITMAP)LoadImageW(NULL,L"./resources/speedometer.bmp",IMAGE_BITMAP,windowWidth,windowHeight,LR_LOADFROMFILE);
-    speedometer[1] = (HBITMAP)LoadImageW(NULL,L"./resources/speedometerCpu.bmp",IMAGE_BITMAP,windowWidth,windowHeight,LR_LOADFROMFILE);
+    resourceS[0] = (HBITMAP)LoadImageW(NULL,L"./resources/speedometer.bmp",IMAGE_BITMAP,BITSMALL,BITSMALL,LR_LOADFROMFILE);
+    resourceS[1] = (HBITMAP)LoadImageW(NULL,L"./resources/speedometerCpu.bmp",IMAGE_BITMAP,BITSMALL,BITSMALL,LR_LOADFROMFILE);
+    resourceM[0] = (HBITMAP)LoadImageW(NULL,L"./resources/speedometer.bmp",IMAGE_BITMAP,BITMEDIUM,BITMEDIUM,LR_LOADFROMFILE);
+    resourceM[1] = (HBITMAP)LoadImageW(NULL,L"./resources/speedometerCpu.bmp",IMAGE_BITMAP,BITMEDIUM,BITMEDIUM,LR_LOADFROMFILE);
+    resourceL[0] = (HBITMAP)LoadImageW(NULL,L"./resources/speedometer.bmp",IMAGE_BITMAP,BITLARGE,BITLARGE,LR_LOADFROMFILE);
+    resourceL[1] = (HBITMAP)LoadImageW(NULL,L"./resources/speedometerCpu.bmp",IMAGE_BITMAP,BITLARGE,BITLARGE,LR_LOADFROMFILE);
+}
+
+void assignBitmaps(const int& size){
+  switch(size){
+    case BITSMALL:
+     speedometer[0] = resourceS[0];
+     speedometer[1] = resourceS[1];
+    break;
+    case BITMEDIUM:
+     speedometer[0] = resourceM[0];
+     speedometer[1] = resourceM[1];
+    break;
+    case BITLARGE:
+     speedometer[0] = resourceL[0];
+     speedometer[1] = resourceL[1];
+    break;
+  }
 }
 
 void setRegion(HWND hwnd){
@@ -43,9 +71,10 @@ void setRegion(HWND hwnd){
 void resizeWidget(HWND hwnd,const int& size){
     windowWidth = size;
     windowHeight = size;
-    loadBitmaps();
+    assignBitmaps(size);
     setRegion(hwnd);
-    SendMessageW(hwnd,WM_MOUSEMOVE,MK_LBUTTON,0);
+    SetWindowPos(hwnd,NULL,0,0,windowWidth,windowHeight,SWP_NOMOVE);
+//  SendMessageW(hwnd,WM_MOUSEMOVE,MK_LBUTTON,0);
 }
 
 void SetupSystemTrayIcon(HWND hwnd, HINSTANCE hInstance) {
@@ -81,86 +110,96 @@ void appendMenu(HWND hwnd){
 }
 
 LRESULT CALLBACK windowProcedure(HWND hwnd,UINT msg,WPARAM wp,LPARAM lp){
-    switch(msg){
-        case WM_COMMAND:
-        switch(wp){
-            case 1:
-            ShowWindow(hwnd,SW_HIDE);
-            break;
-            case 2:
-            Shell_NotifyIconW(NIM_DELETE, &nid);
-            PostQuitMessage(0);
-            quit = true;
-            break;
-            case 3:
-            resizeWidget(hwnd,150);
-            break;
-            case 4:
-            resizeWidget(hwnd,250);
-            break;
-            case 5:
-            resizeWidget(hwnd,400);
-            break;
-            case 6:
-            view = 0;
-            break;
-            case 7:
-            view = 1;
-            break;
-        }
-        break;
-        case WM_MOUSEMOVE:
-        if(wp == MK_LBUTTON){
-            move = true;
-            POINT pt;
-            GetCursorPos(&pt);
-            SetWindowPos(hwnd,NULL,pt.x-(windowWidth/2),pt.y-(windowHeight/2),windowWidth,windowHeight,SWP_NOZORDER);
-        }else{
-            move = false;
-        }
-        break;
-        /* case WM_PAINT:
-        //drawPointer(hwnd);
-        break; */
-        case WM_APP:
-        if (lp == WM_LBUTTONUP)
-        {
-            ShowWindow(hwnd, SW_SHOWNORMAL); 
-        }
-        if(lp == WM_RBUTTONDOWN){
-            POINT pt;
-            GetCursorPos(&pt);
-            TrackPopupMenu(popup,TPM_LEFTALIGN | TPM_RIGHTBUTTON,pt.x,pt.y,0,hwnd,NULL);
-        }
-        if(lp == WM_MOUSEMOVE){
-           
-        }
-        break;
-        case WM_CREATE:
-         appendMenu(hwnd);
-         SetupSystemTrayIcon(hwnd, ((LPCREATESTRUCT)lp)->hInstance);
-        break;
-        case WM_CLOSE:
-        ShowWindow(hwnd,SW_HIDE);
-        break;
-        case WM_CONTEXTMENU:
-        TrackPopupMenu(popup,TPM_LEFTALIGN,LOWORD(lp),HIWORD(lp),0,hwnd,NULL);
-        break;
-        case WM_DESTROY:
-        PostQuitMessage(0);
-        quit = true;
-        break;
-        default:
-         return DefWindowProc(hwnd,msg,wp,lp);
-    }
+  switch(msg){
+    case WM_NCHITTEST:
+     { 
+       if(GetAsyncKeyState(VK_LBUTTON) & 0x8000){
+         POINT pt;
+         pt.x = GET_X_LPARAM(lp);
+         pt.y = GET_Y_LPARAM(lp);
+         return HTCAPTION;
+       }
+
+       return HTCLIENT;
+
+     } 
+    break;
+    case WM_COMMAND:
+      switch(wp){
+          case 1:
+           ShowWindow(hwnd,SW_HIDE);
+          break;
+          case 2:
+           Shell_NotifyIconW(NIM_DELETE, &nid);
+           PostQuitMessage(0);
+           quit = true;
+          break;
+          case 3:
+           resizeWidget(hwnd,BITSMALL);
+          break;
+          case 4:
+           resizeWidget(hwnd,BITMEDIUM);
+          break;
+          case 5:
+           resizeWidget(hwnd,BITLARGE);
+          break;
+          case 6:
+           view = 0;
+          break;
+          case 7:
+           view = 1;
+          break;
+      }
+    break;
+    case WM_APP:
+      if (lp == WM_LBUTTONUP)
+      {
+          ShowWindow(hwnd, SW_SHOWNORMAL); 
+      }
+      if(lp == WM_RBUTTONDOWN){
+          POINT pt;
+          GetCursorPos(&pt);
+          TrackPopupMenu(popup,TPM_LEFTALIGN | TPM_RIGHTBUTTON,pt.x,pt.y,0,hwnd,NULL);
+      }
+      if(lp == WM_MOUSEMOVE){
+         
+      }
+    break;
+    case WM_CREATE:
+     appendMenu(hwnd);
+     SetupSystemTrayIcon(hwnd, ((LPCREATESTRUCT)lp)->hInstance);
+    break;
+    case WM_CLOSE:
+     ShowWindow(hwnd,SW_HIDE);
+    break;
+    case WM_CONTEXTMENU:
+     TrackPopupMenu(popup,TPM_LEFTALIGN,LOWORD(lp),HIWORD(lp),0,hwnd,NULL);
+    break;
+    case WM_DESTROY:
+     PostQuitMessage(0);
+     quit = true;
+    break;
+    default:
+     return DefWindowProc(hwnd,msg,wp,lp);
+  }
 
     return (LRESULT) NULL;
+}
+
+void workerProcedure(){
+  
+  while(quit == false){
+    updateValue(mainWindow);
+    drawPointer(mainWindow);
+    Sleep(16);
+  }
 }
 
 
 int WINAPI WinMain(HINSTANCE instance,HINSTANCE prevInstance,LPSTR argv,int ncmdShow){
 
     loadBitmaps();
+    assignBitmaps(BITSMALL);
 
     std::thread procThread(processorThread);
     
@@ -173,31 +212,24 @@ int WINAPI WinMain(HINSTANCE instance,HINSTANCE prevInstance,LPSTR argv,int ncmd
     wc.hIcon = windowIcon;
 
     if(!RegisterClassW(&wc)){
-        std::cout<<"failed to register MainWindow Class"<<std::endl;
-        return 1;
+      std::cout<<"failed to register MainWindow Class"<<std::endl;
+      return 1;
     }
     
-    HWND mainWindow =  CreateWindowExW(WS_EX_TOPMOST | WS_EX_TOOLWINDOW ,L"mainWindowClass",L"",WS_VISIBLE | WS_POPUP,683,384,windowWidth,windowHeight,NULL,NULL,NULL,NULL);
+    mainWindow =  CreateWindowExW(WS_EX_TOPMOST | WS_EX_TOOLWINDOW ,L"mainWindowClass",L"",WS_VISIBLE | WS_POPUP,683,384,windowWidth,windowHeight,NULL,NULL,NULL,NULL);
 
     setRegion(mainWindow);
 
+    std::thread worker(workerProcedure);
+
     MSG msg;
 
-    while(quit == false){
-
-        while(PeekMessageW(&msg,0,0,0,PM_REMOVE)){
-            TranslateMessage(&msg);
-            DispatchMessage(&msg);
-        }
-
-        updateValue(mainWindow);
-        if(move != true){
-        Sleep(20);
-        }
-        drawPointer(mainWindow);
+    while(GetMessage(&msg,0,0,0)){
+      TranslateMessage(&msg);
+      DispatchMessage(&msg);
     }
 
-     DestroyWindow(mainWindow);
+    DestroyWindow(mainWindow);
 
     return 0;
 }
